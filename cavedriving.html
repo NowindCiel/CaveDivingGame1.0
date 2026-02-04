@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>洞穴潜水探险</title>
+    <style>
+        :root {
+            --bg-color: #02111b;
+            --panel-bg: #062c3f;
+            --text-color: #a8d0e6;
+            --accent-color: #00ffcc;
+            --danger-color: #ff4d4d;
+            --warning-color: #ffcc00;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 600px;
+            background-color: var(--panel-bg);
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 0 20px rgba(0, 255, 204, 0.1);
+            border: 1px solid #1a4d63;
+        }
+
+        h1, h2 {
+            text-align: center;
+            color: var(--accent-color);
+            margin-top: 0;
+        }
+
+        .screen {
+            display: none;
+        }
+
+        .screen.active {
+            display: block;
+        }
+
+        /* Setup Screen */
+        .attribute-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding: 10px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 5px;
+        }
+
+        .attr-name {
+            flex: 1;
+            font-weight: bold;
+        }
+
+        .attr-input {
+            width: 60px;
+            padding: 5px;
+            background: #02111b;
+            border: 1px solid var(--accent-color);
+            color: white;
+            text-align: center;
+            border-radius: 3px;
+        }
+
+        .points-remaining {
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 1.2em;
+            color: var(--warning-color);
+        }
+
+        /* Game Screen */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 20px;
+            background: rgba(0,0,0,0.3);
+            padding: 10px;
+            border-radius: 5px;
+        }
+
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .stat-value {
+            font-weight: bold;
+            color: var(--accent-color);
+        }
+
+        .log-container {
+            height: 200px;
+            overflow-y: auto;
+            background: rgba(0,0,0,0.5);
+            padding: 10px;
+            margin-bottom: 20px;
+            border: 1px solid #1a4d63;
+            border-radius: 5px;
+            font-size: 0.9em;
+            line-height: 1.5;
+        }
+
+        .log-entry {
+            margin-bottom: 8px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding-bottom: 4px;
+        }
+
+        .log-event { color: var(--warning-color); }
+        .log-danger { color: var(--danger-color); }
+        .log-scenery { color: #88ccff; font-style: italic; }
+
+        .controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        button {
+            padding: 15px;
+            font-size: 1.1em;
+            background-color: #1a4d63;
+            color: white;
+            border: 2px solid var(--accent-color);
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            background-color: var(--accent-color);
+            color: #02111b;
+        }
+
+        button:disabled {
+            border-color: #555;
+            color: #555;
+            background-color: #222;
+            cursor: not-allowed;
+        }
+
+        .buff-list {
+            margin-top: 10px;
+            text-align: center;
+            min-height: 20px;
+            color: var(--danger-color);
+            font-weight: bold;
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8);
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+
+        .modal-content {
+            background: var(--panel-bg);
+            padding: 30px;
+            border-radius: 10px;
+            text-align: center;
+            border: 2px solid var(--accent-color);
+            max-width: 80%;
+        }
+
+        .btn-restart {
+            margin-top: 20px;
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <!-- Setup Screen -->
+    <div id="setup-screen" class="screen active">
+        <h1>洞穴潜水探险</h1>
+        <p style="text-align: center; opacity: 0.8;">分配你的属性点，准备下潜。为了不成为神秘园的案例，请努力活下去吧！</p>
+       
+        <div class="points-remaining">剩余点数: <span id="points-val">22</span></div>
+
+        <div class="attribute-row">
+            <span class="attr-name">体质 (体力消耗)</span>
+            <input type="number" class="attr-input" id="input-con" min="0" max="20" value="0" onchange="updatePoints()">
+        </div>
+        <div class="attribute-row">
+            <span class="attr-name">经验 (精神/氧气)</span>
+            <input type="number" class="attr-input" id="input-exp" min="0" max="20" value="0" onchange="updatePoints()">
+        </div>
+        <div class="attribute-row">
+            <span class="attr-name">氮麻醉耐受性</span>
+            <input type="number" class="attr-input" id="input-narc" min="0" max="20" value="0" onchange="updatePoints()">
+        </div>
+        <div class="attribute-row">
+            <span class="attr-name">精神承受力</span>
+            <input type="number" class="attr-input" id="input-ment" min="0" max="20" value="0" onchange="updatePoints()">
+        </div>
+
+        <button onclick="startGame()" style="width: 100%; margin-top: 20px;">开始潜水</button>
+    </div>
+
+    <!-- Game Screen -->
+    <div id="game-screen" class="screen">
+        <h2>潜水状态</h2>
+        <div class="stats-grid">
+            <div class="stat-item"><span>体力</span><span id="stat-hp" class="stat-value">20</span></div>
+            <div class="stat-item"><span>精神力</span><span id="stat-sp" class="stat-value">20</span></div>
+            <div class="stat-item"><span>氧气</span><span id="stat-ox" class="stat-value">20</span></div>
+            <div class="stat-item"><span>深度</span><span id="stat-depth" class="stat-value">0m</span></div>
+        </div>
+
+        <div class="buff-list" id="buff-display"></div>
+
+        <div class="log-container" id="game-log">
+            <div class="log-entry">装备就绪。准备下潜...</div>
+        </div>
+
+        <div class="controls">
+            <button id="btn-dive" onclick="playerAction('dive')">下潜</button>
+            <button id="btn-ascend" onclick="playerAction('ascend')" disabled>上浮</button>
+        </div>
+    </div>
+</div>
+
+<!-- Result Modal -->
+<div id="result-modal" class="modal">
+    <div class="modal-content">
+        <h2 id="modal-title">游戏结束</h2>
+        <p id="modal-msg">...</p>
+        <button class="btn-restart" onclick="location.reload()">重新开始</button>
+    </div>
+</div>
+
+<script>
+    // Game State
+    const state = {
+        attributes: { con: 0, exp: 0, narc: 0, ment: 0 },
+        stats: { hp: 20, sp: 20, ox: 20, depth: 0, maxDepth: 0 },
+        buffs: [],
+        isGameOver: false
+    };
+
+    const sceneryList = [
+        "幽暗的钟乳石如獠牙般垂下。",
+        "发光的浮游生物如星尘闪烁。",
+        "古老的岩石缝隙透着微光。",
+        "奇异的透明鱼群在身边游动。",
+        "深蓝色的水流静谧而压抑。",
+        "沉没的枯树枝在水中摇曳。",
+        "岩壁上附着着斑斓的苔藓。",
+        "前方出现巨大的地下石拱门。",
+        "细沙在底部随着水流缓缓飘动。",
+        "黑暗中似乎有某种生物的眼睛。"
+    ];
+
+    // Setup Logic
+    function updatePoints() {
+        const con = parseInt(document.getElementById('input-con').value) || 0;
+        const exp = parseInt(document.getElementById('input-exp').value) || 0;
+        const narc = parseInt(document.getElementById('input-narc').value) || 0;
+        const ment = parseInt(document.getElementById('input-ment').value) || 0;
+
+        const total = con + exp + narc + ment;
+        const remaining = 22 - total;
+
+        const display = document.getElementById('points-val');
+        display.innerText = remaining;
+
+        if (remaining < 0) {
+            display.style.color = 'red';
+            return false;
+        } else {
+            display.style.color = '#ffcc00';
+            return true;
+        }
+    }
+
+    function startGame() {
+        if (!updatePoints()) {
+            alert("属性点总和不能超过20！");
+            return;
+        }
+       
+        const remaining = parseInt(document.getElementById('points-val').innerText);
+        if (remaining > 0) {
+            alert("请分配完所有20点属性！");
+            return;
+        }
+
+        state.attributes.con = parseInt(document.getElementById('input-con').value);
+        state.attributes.exp = parseInt(document.getElementById('input-exp').value);
+        state.attributes.narc = parseInt(document.getElementById('input-narc').value);
+        state.attributes.ment = parseInt(document.getElementById('input-ment').value);
+
+        document.getElementById('setup-screen').classList.remove('active');
+        document.getElementById('game-screen').classList.add('active');
+        updateUI();
+    }
+
+    // Core Game Logic
+    function log(msg, type = '') {
+        const logContainer = document.getElementById('game-log');
+        const entry = document.createElement('div');
+        entry.className = `log-entry ${type}`;
+        entry.innerText = msg;
+        logContainer.appendChild(entry);
+        logContainer.scrollTop = logContainer.scrollHeight;
+    }
+
+    function updateUI() {
+        document.getElementById('stat-hp').innerText = state.stats.hp;
+        document.getElementById('stat-sp').innerText = state.stats.sp;
+        document.getElementById('stat-ox').innerText = state.stats.ox;
+        document.getElementById('stat-depth').innerText = state.stats.depth + "m";
+
+        // Update Buttons
+        const diveBtn = document.getElementById('btn-dive');
+        const ascendBtn = document.getElementById('btn-ascend');
+       
+        ascendBtn.disabled = state.stats.depth <= 0;
+
+        // Narcosis Effect (Scramble Text)
+        if (state.buffs.includes('氮中毒')) {
+            diveBtn.innerText = generateGibberish(6);
+            ascendBtn.innerText = generateGibberish(6);
+        } else {
+            diveBtn.innerText = "下潜";
+            ascendBtn.innerText = "上浮";
+        }
+
+        // Buffs Display
+        const buffDisplay = document.getElementById('buff-display');
+        if (state.buffs.length > 0) {
+            buffDisplay.innerText = "当前状态: " + state.buffs.join(", ");
+        } else {
+            buffDisplay.innerText = "";
+        }
+    }
+
+    function generateGibberish(length) {
+        const chars = "!@#$%^&*()_+{}|:<>?~`";
+        let result = "";
+        for (let i = 0; i < length; i++) {
+            result += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return result;
+    }
+
+    function checkDeath() {
+        if (state.stats.depth > 0) {
+            if (state.stats.hp <= 0) return "你的体力耗尽，无法再游动...";
+            if (state.stats.sp <= 0) return "你的精神崩溃，在深渊中迷失了自我...";
+            if (state.stats.ox <= 0) return "氧气耗尽，窒息感涌上心头...";
+        }
+        return null;
+    }
+
+    function endGame(reason, isWin) {
+        state.isGameOver = true;
+        const modal = document.getElementById('result-modal');
+        const title = document.getElementById('modal-title');
+        const msg = document.getElementById('modal-msg');
+
+        modal.style.display = 'flex';
+        title.innerText = isWin ? "探险结束" : "游戏结束";
+        title.style.color = isWin ? "#00ffcc" : "#ff4d4d";
+
+        msg.innerText = reason + "\n\n本次探险最大深度: " + state.stats.maxDepth + "米";
+    }
+
+    function playerAction(action) {
+        if (state.isGameOver) return;
+
+        const oldDepth = state.stats.depth;
+        let depthChange = 0;
+
+        // 1. Calculate Depth Change
+        if (action === 'dive') {
+            depthChange = Math.floor(Math.random() * 2) + 1; // 1-2
+            state.stats.depth += depthChange;
+
+            // 如果当前深度超过了记录的最大深度，则更新记录
+            if (state.stats.depth > state.stats.maxDepth) {
+                state.stats.maxDepth = state.stats.depth;
+            }
+
+            log(`你开始下潜... 深度增加 ${depthChange} 米。`);
+           
+            // Scenery
+            const scenery = sceneryList[Math.floor(Math.random() * sceneryList.length)];
+            log(`眼前景象: ${scenery}`, 'log-scenery');
+
+        } else if (action === 'ascend') {
+            depthChange = -(Math.floor(Math.random() * 2) + 2); // -2 to -3
+            state.stats.depth = Math.max(0, state.stats.depth + depthChange);
+            log(`你开始上浮... 深度减少 ${Math.abs(depthChange)} 米。`);
+        }
+
+        const newDepth = state.stats.depth;
+        const actualChange = Math.abs(newDepth - oldDepth);
+
+        // 2. Depth >= 10 Base Penalties
+        if (newDepth >= 10) {
+            if (state.attributes.con <= 5) {
+                state.stats.hp -= 2;
+                log("[压力] 身体感到沉重，体力 -2", 'log-danger');
+            }
+            if (state.attributes.exp <= 5) {
+                state.stats.sp -= 2;
+                state.stats.ox -= 1;
+                log("[压力] 紧张导致呼吸急促，精神 -2，氧气 -1", 'log-danger');
+            }
+        }
+
+        // 3. Zone Specific Penalties (No Buffs)
+        if (!state.buffs.length) {
+            if (newDepth >= 10 && newDepth <= 30) {
+                state.stats.hp -= 1;
+                // Every 5m change
+                if (Math.floor(newDepth / 5) > Math.floor(oldDepth / 5) || Math.floor(newDepth / 5) < Math.floor(oldDepth / 5)) {
+                    state.stats.sp -= 1;
+                    state.stats.ox -= 1;
+                    log("[深度变化] 环境压力改变，精神 -1，氧气 -1", 'log-danger');
+                }
+            } else if (newDepth > 30) {
+                if (state.attributes.con <= 5 && state.attributes.ment <= 5 && state.attributes.exp <= 5) {
+                    state.stats.hp -= 2;
+                    state.stats.sp -= 2;
+                    state.stats.ox -= 2;
+                    log("[极限深处] 你的属性难以招架，全属性 -2", 'log-danger');
+                } else {
+                    state.stats.hp -= 1;
+                    state.stats.sp -= 1;
+                    state.stats.ox -= 1;
+                    log("[极限深处] 勉强维持状态，全属性 -1", 'log-danger');
+                }
+            }
+        }
+
+        // 4. Apply Buff Effects
+        applyBuffEffects(action, actualChange);
+
+        // 5. Trigger Events (Only on Dive, No Buffs)
+        if (action === 'dive' && !state.buffs.length) {
+            triggerEvents(newDepth);
+        }
+
+        // 6. Check Death
+        const deathReason = checkDeath();
+        if (deathReason) {
+            updateUI();
+            endGame(deathReason, false);
+            return;
+        }
+
+        // 7. Check Win (Return to surface)
+        if (newDepth === 0 && oldDepth > 0) {
+            updateUI();
+            setTimeout(() => {
+                if(confirm("你已安全回到水面。结束探险吗？")) {
+                    endGame("恭喜你活着完成了探险！", true);
+                }
+            }, 100);
+        } else {
+            updateUI();
+        }
+    }
+
+    function applyBuffEffects(action, depthChange) {
+        // Panic
+        if (state.buffs.includes('惊慌失措')) {
+            state.stats.hp -= 2;
+            log("[Buff: 惊慌失措] 心跳加速，体力额外 -2", 'log-danger');
+            if (depthChange >= 5) {
+                state.stats.ox -= 2;
+                log("[Buff: 惊慌失措] 慌乱中呼吸急促，氧气额外 -2", 'log-danger');
+            }
+        }
+
+        // Oxygen Shortage
+        if (state.buffs.includes('氧气不足')) {
+            state.stats.ox -= 3;
+            log("[Buff: 氧气不足] 设备故障导致氧气流失，氧气 -3", 'log-danger');
+        }
+
+        // Narcosis (Direct Stat Penalty)
+        if (state.buffs.includes('氮中毒')) {
+            if (action === 'dive') {
+                state.stats.hp -= 3;
+                state.stats.sp -= 3;
+                state.stats.ox -= 2;
+                log("[Buff: 氮中毒] 盲目下潜，体力-3，精神-3，氧气-2", 'log-danger');
+            } else {
+                state.stats.hp -= 2;
+                state.stats.sp -= 2;
+                state.stats.ox -= 1;
+                log("[Buff: 氮中毒] 盲目上浮，体力-2，精神-2，氧气-1", 'log-danger');
+            }
+        }
+    }
+
+    function triggerEvents(depth) {
+        let events = [];
+       
+        // Common Events (10m+)
+        if (depth >= 10) {
+            events.push({ name: "搅动淤泥", chance: 0.3, handler: eventSilt });
+            const narcChance = state.attributes.narc <= 5 ? 0.03 : 0.005;
+            events.push({ name: "氮麻醉", chance: narcChance, handler: eventNarcosis });
+            events.push({ name: "设备故障", chance: 0.1, handler: eventEquipment });
+        }
+
+        // Deep Events (>30m)
+        if (depth > 30) {
+            events.push({ name: "迷路", chance: 0.3, handler: eventLost });
+        }
+
+        // Roll for one event
+        // Shuffle to make order random
+        events.sort(() => Math.random() - 0.5);
+
+        for (let e of events) {
+            if (Math.random() < e.chance) {
+                log(`>>> 突发事件：${e.name}！ <<<`, 'log-event');
+                e.handler();
+                break; // Only one event per turn
+            }
+        }
+    }
+
+    // Event Handlers
+    function eventSilt() {
+        log("洞穴内淤泥被搅动，视线变得模糊！");
+        if (state.attributes.ment <= 5) {
+            state.stats.sp -= 2;
+            state.buffs.push('惊慌失措');
+            log("你感到极度恐慌！(获得Buff: 惊慌失措)", 'log-danger');
+        } else {
+            log("你保持冷静，慢慢等待尘埃落定。");
+        }
+    }
+
+    function eventNarcosis() {
+        log("深水压力导致氮麻醉反应，意识开始模糊...");
+        state.stats.sp -= 5;
+        state.buffs.push('氮中毒');
+        log("你的思维变得迟钝，眼前出现幻觉。(获得Buff: 氮中毒)", 'log-danger');
+    }
+
+    function eventEquipment() {
+        log("调节器发出异常的嘶嘶声，设备出现故障！");
+        if (state.attributes.ment <= 5 && state.attributes.exp <= 5) {
+            state.stats.sp -= 2;
+            state.buffs.push('惊慌失措');
+            state.buffs.push('氧气不足');
+            log("惊慌失措中，氧气也在快速流失！(获得Buff: 惊慌失措, 氧气不足)", 'log-danger');
+        } else {
+            log("凭借经验，你迅速切换到备用气源，有惊无险。");
+        }
+    }
+
+    function eventLost() {
+        log("周围的地形变得陌生，你似乎迷路了...");
+        if (state.attributes.ment <= 5 && state.attributes.exp <= 5) {
+            state.stats.sp -= 2;
+            state.buffs.push('惊慌失措');
+            log("恐惧感袭来，你不知道该往哪里游。(获得Buff: 惊慌失措)", 'log-danger');
+        } else {
+            log("你仔细观察水流和岩壁特征，确认了方向。");
+        }
+    }
+
+</script>
+
+</body>
+</html>
